@@ -218,13 +218,13 @@ void *do_commit_abort(long t, char status)
 
   // write your code
   zgt_tx *tx = get_tx(t);
-  tx->print_tm();
+  //tx->print_tm();
   int NumberOfTransaction;
   if (tx != NULL)
   {
     tx->free_locks();
     int SemNumber = tx->semno;
-    zgt_v(0);
+    tx->end_tx();
 
     if (SemNumber != -1)
     {
@@ -245,26 +245,27 @@ void *do_commit_abort(long t, char status)
     {
       printf("SemNumber = -1\n");
     }
+    //tx->free_locks();
+    //tx->remove_tx();
+    //zgt_v(0);
+    if (status == 'A')
+    {
+      fprintf(ZGT_Sh->logfile, "T%d\t AbortTx \t \n", t);
+      fflush(ZGT_Sh->logfile);
+    }
+    else
+    {
+      fprintf(ZGT_Sh->logfile, "T%d\t CommitTx \t \n", t);
+      fflush(ZGT_Sh->logfile);
+    }
   }
   else if (tx == NULL)
   {
     fprintf(ZGT_Sh->logfile, "T%d Does not exists", t);
     fflush(ZGT_Sh->logfile);
-    zgt_v(0);
+    //zgt_v(0);
   }
-  tx->free_locks();
-  tx->remove_tx();
-  zgt_v(0);
-  if (status == 'A')
-  {
-    fprintf(ZGT_Sh->logfile, "T%d\t AbortTx \t \n", t);
-    fflush(ZGT_Sh->logfile);
-  }
-  else
-  {
-    fprintf(ZGT_Sh->logfile, "T%d\t CommitTx \t \n", t);
-    fflush(ZGT_Sh->logfile);
-  }
+
 }
 
 
