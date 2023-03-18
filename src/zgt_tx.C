@@ -174,14 +174,14 @@ void *aborttx(void *arg)
   //write your code
   start_operation(node->tid, node->count);
 
-  zgt_p(0);
+  //zgt_p(0);
 
   zgt_tx *tx = get_tx(node->tid);
 
   tx->status = 'A';
 
   do_commit_abort(node->tid, 'A');
-  zgt_v(0);
+  //zgt_v(0);
   finish_operation(node->tid);
   pthread_exit(NULL);			// thread exit
 }
@@ -195,14 +195,14 @@ void *committx(void *arg)
   //write your code
   start_operation(node->tid, node->count);
 
-  zgt_p(0);
+  //zgt_p(0);
 
   zgt_tx *tx = get_tx(node->tid);
 
   tx->status = 'E';
 
   do_commit_abort(node->tid, 'E');
-  zgt_v(0);
+  //zgt_v(0);
   finish_operation(node->tid);
   pthread_exit(NULL);			// thread exit
 }
@@ -237,7 +237,7 @@ void *do_commit_abort(long t, char status){
 	tx->status = status;
 	tx->free_locks();//free all locks
 	int TransactionNumber = tx->semno;
-	tx->end_tx();//removes all locks
+	tx->remove_tx();//removes all locks
 	int i, txwait;
 	if (TransactionNumber != -1) {
 		txwait = zgt_nwait(TransactionNumber);
@@ -497,24 +497,28 @@ void zgt_tx::perform_readWrite(long tid,long obno, char lockmode){
   zgt_tx *tx = get_tx(tid);
   int i;
   int s, x;
+  int objvalue = ZGT_Sh->objarray[obno]->value;
   if (lockmode == 'S')
   {
-    s = ZGT_Sh->objarray[obno]->value;
-    s -= 3;
-    ZGT_Sh->objarray[obno]->value = s;
+    ZGT_Sh->objarray[obno]->value = objvalue-3;
+    // s -= 3;
+    // ZGT_Sh->objarray[obno]->value = s;
 
     fprintf(ZGT_Sh->logfile, "T%d\t\t\t   \tReadTx \t\t%d:%d:%d  \t ReadLock \t\t Granted \t\t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
+    fflush(stdout);
     zgt_v(0);
   }
   else if (lockmode == 'X')
   {
-    x = ZGT_Sh->objarray[obno]->value;
-    x += 5;
-    ZGT_Sh->objarray[obno]->value = x;
+    // x = ZGT_Sh->objarray[obno]->value;
+    // x += 5;
+    // ZGT_Sh->objarray[obno]->value = x;
+     ZGT_Sh->objarray[obno]->value = objvalue+3;
 
     fprintf(ZGT_Sh->logfile, "T%d\t\t\t   \tWriteTx \t%d:%d:%d \t\t WriteLock \t\t Granted \t\t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
+    fflush(stdout);
     zgt_v(0);
   }
   else

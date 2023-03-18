@@ -161,7 +161,7 @@ int zgt_tm::CommitTx(long tid, int thrNum)
    struct param *nodeinfo = (struct param*)malloc(sizeof(struct param));
    nodeinfo->tid = tid;
    // nodeinfo->obno = obno;
-   nodeinfo->Txtype = ' ';
+   //nodeinfo->Txtype = ' ';
    nodeinfo->count = --SEQNUM[tid];
    int status;
    status = pthread_create(&threadid[thrNum],NULL,committx,(void*)nodeinfo);
@@ -190,7 +190,7 @@ int zgt_tm::AbortTx(long tid, int thrNum)
    struct param *nodeinfo = (struct param*)malloc(sizeof(struct param));
    nodeinfo->tid = tid;
    //->obno = obno;
-   nodeinfo->Txtype = ' ';
+   //nodeinfo->Txtype = ' ';
    nodeinfo->count = --SEQNUM[tid];
    int status;
    status = pthread_create(&threadid[thrNum],NULL,aborttx,(void*)nodeinfo);
