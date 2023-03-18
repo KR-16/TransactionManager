@@ -86,7 +86,7 @@ void *begintx(void *arg){
     tx->nextr = ZGT_Sh->lastr;
     ZGT_Sh->lastr = tx;   
     zgt_v(0); 			// Release tx manager 
-  fprintf(ZGT_Sh->logfile, "T%d\t%c \tBeginTx\n", node->tid, node->Txtype);	// Write log record and close
+  fprintf(ZGT_Sh->logfile, "T%d\t\t%c \t\tBeginTx\n", node->tid, node->Txtype);	// Write log record and close
     fflush(ZGT_Sh->logfile);
   finish_operation(node->tid);
   pthread_exit(NULL);				// thread exit
@@ -213,58 +213,38 @@ void *committx(void *arg)
 // operation. Make sure you give error messages if you are trying to
 // commit/abort a non-existent tx
 
-void *do_commit_abort(long t, char status) 
-{
+void *do_commit_abort(long t, char status){
 
-  // write your code
-  zgt_tx *tx = get_tx(t);
-  //tx->print_tm();
-  int NumberOfTransaction;
-  if (tx != NULL)
-  {
-    tx->free_locks();
-    int SemNumber = tx->semno;
-    tx->end_tx();
-
-    if (SemNumber != -1)
-    {
-      NumberOfTransaction = zgt_nwait(SemNumber);
-      printf("Number of Transaction = %d tx->semno %d \n", NumberOfTransaction, SemNumber);
-
-      int i = 0;
-      if (NumberOfTransaction > 0)
-      {
-        while (i <= NumberOfTransaction)
-        {
-          zgt_v(SemNumber);
-          i += 1;
-        }
-      }
-    }
-    else
-    {
-      printf("SemNumber = -1\n");
-    }
-    //tx->free_locks();
-    //tx->remove_tx();
-    //zgt_v(0);
-    if (status == 'A')
-    {
-      fprintf(ZGT_Sh->logfile, "T%d\t AbortTx \t \n", t);
-      fflush(ZGT_Sh->logfile);
-    }
-    else
-    {
-      fprintf(ZGT_Sh->logfile, "T%d\t CommitTx \t \n", t);
-      fflush(ZGT_Sh->logfile);
-    }
-  }
-  else if (tx == NULL)
-  {
-    fprintf(ZGT_Sh->logfile, "T%d Does not exists", t);
-    fflush(ZGT_Sh->logfile);
-    //zgt_v(0);
-  }
+	if(status == 'A'){
+		fprintf(ZGT_Sh->logfile, "T%d \t\t\t\tAbortTx \t",t);
+}else{
+		fprintf(ZGT_Sh->logfile, "T%d \t\t\t\tCommmitTx \t",t);
+}fflush(ZGT_Sh->logfile);
+	zgt_tx *tx = get_tx(t);//returns null if node is not found
+	if(tx == NULL){																// Error if you are trying to commit/abort a non-existant tx
+		fprintf(ZGT_Sh->logfile, "\n committing/aborting transction that does not exit.\n");
+		fflush(ZGT_Sh->logfile);
+		printf("\n committing/aborting transction that does not exit.\n");
+		fflush(stdout);
+	}
+	else{
+	if(tx->status == 'W'){
+		printf("T%d\t is in wrong state \n", t);
+		fflush(stdout);
+		fprintf(ZGT_Sh->logfile, "T%d\t is in wrong state \n", t);
+		fflush(ZGT_Sh->logfile);
+	}
+	tx->status = status;
+	tx->free_locks();//free all locks
+	int TransactionNumber = tx->semno;
+	tx->end_tx();//removes all locks
+	int i, txwait;
+	if (TransactionNumber != -1) {
+		txwait = zgt_nwait(TransactionNumber);
+		for(i=1; i<=txwait; i++)
+			zgt_v(TransactionNumber);//does zgt_v() for every zgt_p()
+		}
+	}
 
 }
 
@@ -523,7 +503,7 @@ void zgt_tx::perform_readWrite(long tid,long obno, char lockmode){
     s -= 3;
     ZGT_Sh->objarray[obno]->value = s;
 
-    fprintf(ZGT_Sh->logfile, "T%d\t  \tReadTx \t\t %d:%d:%d  \t\t ReadLock \t Granted \t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
+    fprintf(ZGT_Sh->logfile, "T%d\t\t\t   \tReadTx \t\t%d:%d:%d  \t ReadLock \t\t Granted \t\t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
     zgt_v(0);
   }
@@ -533,7 +513,7 @@ void zgt_tx::perform_readWrite(long tid,long obno, char lockmode){
     x += 5;
     ZGT_Sh->objarray[obno]->value = x;
 
-    fprintf(ZGT_Sh->logfile, "T%d\t  \tWriteTx \t %d:%d:%d  \t\t WriteLock \t Granted \t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
+    fprintf(ZGT_Sh->logfile, "T%d\t\t\t   \tWriteTx \t%d:%d:%d \t\t WriteLock \t\t Granted \t\t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
     zgt_v(0);
   }
