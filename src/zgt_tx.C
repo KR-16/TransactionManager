@@ -104,27 +104,10 @@ void *readtx(void *arg){
 
   // do the operations for reading. Write your code
   start_operation(node->tid, node->count);
-
-  zgt_p(0);
-  zgt_tx *tx = get_tx(node->tid);
-  if (tx != NULL)
-  {
-    tx->print_tm();
-    if (tx->status == TR_ACTIVE)
-    {
-      zgt_v(0); // allows other transactions to access and use the transaction manager.
-      int lock_acquired = tx->set_lock(node->tid, tx->sgno, node->obno, node->count, 'S');
-      if (lock_acquired == 1)
-        tx->perform_readWrite(tx->tid, node->obno, 'S');
-    }
-  }
-  else
-  {
-    zgt_v(0);
-    fprintf(ZGT_Sh->logfile, "T%d\t%c Transaction does't exist\n", node->tid, node->Txtype); // Write log record and close
-  }
-  finish_operation(node->tid);
-  pthread_exit(NULL); // thread exit
+    zgt_tx *tx = get_tx(node->tid);
+    tx->set_lock(tx->tid,tx->sgno,node->obno,node->count,'S');
+    finish_operation(node->tid);
+    pthread_exit(NULL);
 
 }
 
@@ -134,29 +117,10 @@ void *writetx(void *arg){ //do the operations for writing; similar to readTx
   
   // do the operations for writing; similar to readTx. Write your code
   start_operation(node->tid, node->count);
-  zgt_p(0);
-  zgt_tx *tx = get_tx(node->tid);
-
-  if(tx!=NULL)
-  {
-    tx->print_tm();
-    if(tx->status == TR_ACTIVE)
-    {
-      zgt_v(0);
-      int lock_acquired = tx->set_lock(node->tid, tx->sgno, node->obno, node->count, 'X');
-      if(lock_acquired == 1)
-      {
-        tx->perform_readWrite(tx->tid, node->obno, 'X');
-      }
-    }
-  }
-  else
-  {
-    zgt_v(0);
-  fprintf(ZGT_Sh->logfile,"T%d\t%c Transaction does't exist\n", node->tid, node->Txtype);
-  }
-  finish_operation(node->tid);
-  pthread_exit(NULL);
+    zgt_tx *tx = get_tx(node->tid);
+    tx->set_lock(tx->tid,tx->sgno,node->obno,node->count,'X');
+    finish_operation(node->tid);
+    pthread_exit(NULL);
   
 }
 
@@ -278,87 +242,94 @@ int zgt_tx::set_lock(long tid1, long sgno1, long obno1, int count, char lockmode
   //transaction list if waiting.
   //if successful  return(0); else -1
   
-    //write your code
-    zgt_tx *tx = get_tx(tid1);
-    zgt_hlink *obj;
-    obj = ZGT_Ht->find(tx->obno, tx->sgno);
+  //write your code
+  zgt_tx *tx = get_tx(tid1);
+  zgt_p(0);
+  // Checking if the transaction is present or not
+  zgt_hlink *trans = ZGT_Ht->find(sgno1, obno1);
+  zgt_v(0);
 
-  // write your code
-  bool lock_acquired = false;
-  while (!lock_acquired)
+  // If no transaction found we would need to add it
+  if(trans == NULL)
   {
     zgt_p(0);
-    zgt_tx *tx = get_tx(tid1);
+    // Adding the transaction
+    ZGT_Ht->add(tx,sgno1, obno1, lockmode1);
+    zgt_v(0);
+    // Now performing read write operations
+    tx->perform_readWrite(tid1, obno1, lockmode1);
+  }
+  
+  
+  // Transaction found so we could perform operations  
+  else if(tx->tid == trans->tid)
+  {
+    tx->perform_readWrite(tid1, obno1, lockmode1);
+  }
+  
+  //If it is locked by another transaction
+  else
+  {
+    zgt_p(0);
+    //Finding the transaction
+    zgt_hlink *finder = ZGT_Ht->findt(tid1, sgno1, obno1);
+    zgt_v(0);
 
-    if (obj == NULL) // if the object is not present in the hash table
+    // Transaction exists and it has been found
+    if(finder!=NULL)
     {
-      ZGT_Ht->add(tx, obno1, sgno1, tx->lockmode);
-      tx->status = 'P';
-      zgt_v(0);
-      return 1;
+      tx->perform_readWrite(tid1, obno1, lockmode1);
     }
     else
     {
-      if (obj->tid == tid1)
+      //No locks in transaction
+      printf("No lock in t%d.\n",trans->tid);
+      fflush(stdout);
+      int total_waiting = zgt_nwait(trans->tid);
+      printf("Current transaction lock mode is : %c\n",lockmode1);
+      printf("Previous transaction locking mode : %c\n", trans->lockmode);
+      printf("Number of waiting transactions : %d\n", total_waiting);
+      fflush(stdout);
+  
+      if(lockmode1 == 'X' || (lockmode1 == 'S' && trans->lockmode == 'X' ) || (lockmode1 == 'S' && trans->lockmode == 'S' && total_waiting > 0))
       {
-        tx->status = 'P';
-        zgt_v(0);
-        return 1;
+        // zgt_tx *tx = get_tx(tid);
+        // zgt_p(0);
+        // zgt_hlink *linkp = ZGT_Ht->find(sgno, obno);
+        tx->obno = obno1;
+        tx->lockmode = lockmode1;
+        tx->status = TR_WAIT;
+        //Semaphore to a transcation.
+        tx->setTx_semno(trans->tid,trans->tid);
+        printf("The transaction %d is waiting at transaction %d for an object number %d", tid1, trans->tid, obno1);
+        fflush(stdout);
+        zgt_p(trans->tid);
+        // tx->setTx_semno(linkp->tid,linkp->tid);
+        //  printf(":::Tx%d is waiting on Tx%d for object no %d \n",tid,linkp->tid,obno);
+        //  fflush(stdout);
+        //  zgt_p(linkp->tid);
+        //  tx->obno = -1;
+        //  tx->lockmode = ' ';
+        //  tx->status = TR_ACTIVE;
+        tx->obno = -1;
+        tx->lockmode = ' ';
+        tx->status = TR_ACTIVE;
+        printf("The transaction %d is waiting at transaction %d for object number %d", tid1, trans->tid, obno1);
+        fflush(stdout);
+        //Performing Read Write on that transaction
+        tx->perform_readWrite(tid1, obno1, lockmode1);
+        //Freeing the lock
+        zgt_v(trans->tid);
       }
+            
       else
       {
-        zgt_tx *current_tx = get_tx(obj->tid);
-        zgt_hlink *other_tx = others_lock(obj, sgno1, obno1); // checking for other transactions waiting on this object
-
-        if (tx->Txtype == 'R' && current_tx->Txtype == 'R' && other_tx->lockmode != 'X')
-        {
-          lock_acquired = true;
-          if (tx->head == NULL)
-          {
-            ZGT_Ht->add(tx, obno1, tx->sgno, tx->lockmode);
-            obj = ZGT_Ht->find(tx->sgno, obno1);
-            tx->head = obj;
-            tx->status = 'P';
-            zgt_v(0);
-            return 1;
-          }
-          else
-          {
-            zgt_hlink *temp = obj;
-            while (temp->nextp != NULL)
-            {
-              temp = temp->nextp;
-            }
-            zgt_v(0);
-            return 1;
-          }
-        }
-        else
-        {
-          tx->status = 'W';
-          tx->obno = obno1;
-          tx->lockmode = lockmode1;
-
-          if (get_tx(obj->tid))
-          {
-            tx->setTx_semno(obj->tid, obj->tid);
-          }
-          else
-          {
-            tx->status = 'P';
-            zgt_v(0);
-            return 1;
-          }
-          fprintf(ZGT_Sh->logfile, "T%d\t%c Transaction is waiting\n", tx->tid, tx->Txtype); // Write log record and close
-          tx->print_tm();
-          zgt_v(0);
-          zgt_p(obj->tid);
-          lock_acquired = false;
-        }
+        // Shared lock so we could perform read and write
+        tx->perform_readWrite(tid1, obno1, lockmode1);
       }
     }
   }
-
+  return(0);
   
 }
 
@@ -514,7 +485,7 @@ void zgt_tx::perform_readWrite(long tid,long obno, char lockmode){
     // x = ZGT_Sh->objarray[obno]->value;
     // x += 5;
     // ZGT_Sh->objarray[obno]->value = x;
-     ZGT_Sh->objarray[obno]->value = objvalue+3;
+     ZGT_Sh->objarray[obno]->value = objvalue+5;
 
     fprintf(ZGT_Sh->logfile, "T%d\t\t\t   \tWriteTx \t%d:%d:%d \t\t WriteLock \t\t Granted \t\t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
