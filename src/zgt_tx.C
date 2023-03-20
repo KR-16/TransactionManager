@@ -86,7 +86,7 @@ void *begintx(void *arg){
     tx->nextr = ZGT_Sh->lastr;
     ZGT_Sh->lastr = tx;   
     zgt_v(0); 			// Release tx manager 
-  fprintf(ZGT_Sh->logfile, "T%d\t\t%c \t\tBeginTx\n", node->tid, node->Txtype);	// Write log record and close
+  fprintf(ZGT_Sh->logfile, "T%d\t%c \tBeginTx\n", node->tid, node->Txtype);	// Write log record and close
     fflush(ZGT_Sh->logfile);
   finish_operation(node->tid);
   pthread_exit(NULL);				// thread exit
@@ -99,29 +99,60 @@ void *begintx(void *arg){
 /* or same tx holds a lock on it. Otherwise waits */
 /* until the lock is released */
 
-void *readtx(void *arg){
-  struct param *node = (struct param*)arg;// get tid and objno and count
+void *readtx(void *arg)
+{
+  struct param *node = (struct param *)arg;
+  start_operation(node->tid, node->count);
 
-  // do the operations for reading. Write your code
-    start_operation(node->tid, node->count);
-    zgt_tx *tx = get_tx(node->tid);
-    tx->set_lock(tx->tid,tx->sgno,node->obno,node->count,'S');
-    finish_operation(node->tid);
-    pthread_exit(NULL);
+  zgt_p(0);
+  zgt_tx *tx = get_tx(node->tid);
+  zgt_hlink *obj = ZGT_Ht->find(tx->sgno, node->obno);
+  if (tx != NULL)
+  {
+    tx->print_tm();
 
+    if (tx->status == TR_ACTIVE)
+    {
+      zgt_v(0); // allows other transactions to access and use the transaction manager.
+      tx->set_lock(node->tid, tx->sgno, node->obno, node->count, 'S');
+    }
+  }
+  else
+  {
+    zgt_v(0);
+    fprintf(ZGT_Sh->logfile, "T%d\t%c Transaction does't exist\n", node->tid, node->Txtype); // Write log record and close
+  }
+  finish_operation(node->tid);
+  pthread_exit(NULL); // thread exit
 }
 
+void *writetx(void *arg)
+{                                           // do the operations for writing; similar to readTx
+  struct param *node = (struct param *)arg; // struct parameter that contains
+  start_operation(node->tid, node->count);
 
-void *writetx(void *arg){ //do the operations for writing; similar to readTx
-  struct param *node = (struct param*)arg;	// struct parameter that contains
-  
-  // do the operations for writing; similar to readTx. Write your code
-    start_operation(node->tid, node->count);
-    zgt_tx *tx = get_tx(node->tid);
-    tx->set_lock(tx->tid,tx->sgno,node->obno,node->count,'X');
-    finish_operation(node->tid);
-    pthread_exit(NULL);
-  
+  zgt_p(0);
+  zgt_tx *tx = get_tx(node->tid);
+  zgt_hlink *obj = ZGT_Ht->find(tx->sgno, node->obno);
+  if (tx != NULL)
+  {
+
+    tx->print_tm();
+
+    if (tx->status == TR_ACTIVE)
+    {
+
+      zgt_v(0); // allows other transactions to access and use the transaction manager.
+      tx->set_lock(node->tid, tx->sgno, node->obno, node->count, 'X');
+    }
+  }
+  else
+  {
+    zgt_v(0);
+    fprintf(ZGT_Sh->logfile, "T%d\t%c Transaction does't exist\n", node->tid, node->Txtype); // Write log record and close
+  }
+  finish_operation(node->tid);
+  pthread_exit(NULL); // thread exit
 }
 
 // common method to process read/write: Just a suggestion
@@ -138,14 +169,14 @@ void *aborttx(void *arg)
   //write your code
   start_operation(node->tid, node->count);
 
-  //zgt_p(0);
+  zgt_p(0);
 
   zgt_tx *tx = get_tx(node->tid);
 
   tx->status = 'A';
 
   do_commit_abort(node->tid, 'A');
-  //zgt_v(0);
+  zgt_v(0);
   finish_operation(node->tid);
   pthread_exit(NULL);			// thread exit
 }
@@ -159,14 +190,14 @@ void *committx(void *arg)
   //write your code
   start_operation(node->tid, node->count);
 
-  //zgt_p(0);
+  zgt_p(0);
 
   zgt_tx *tx = get_tx(node->tid);
 
   tx->status = 'E';
 
   do_commit_abort(node->tid, 'E');
-  //zgt_v(0);
+  zgt_v(0);
   finish_operation(node->tid);
   pthread_exit(NULL);			// thread exit
 }
@@ -180,9 +211,9 @@ void *committx(void *arg)
 void *do_commit_abort(long t, char status){
 
 	if(status == 'A'){
-		fprintf(ZGT_Sh->logfile, "T%d \t\t\t\tAbortTx \t",t);
+		fprintf(ZGT_Sh->logfile, "T%d \t\tAbortTx \t",t);
 }else{
-		fprintf(ZGT_Sh->logfile, "T%d \t\t\t\tCommmitTx \t",t);
+		fprintf(ZGT_Sh->logfile, "T%d \t\tCommmitTx \t",t);
 }fflush(ZGT_Sh->logfile);
 	zgt_tx *tx = get_tx(t);//returns null if node is not found
 	if(tx == NULL){																// Error if you are trying to commit/abort a non-existant tx
@@ -461,7 +492,7 @@ void zgt_tx::perform_readWrite(long tid,long obno, char lockmode){
     // s -= 3;
     // ZGT_Sh->objarray[obno]->value = s;
 
-    fprintf(ZGT_Sh->logfile, "T%d\t\t\t   \tReadTx \t\t%d:%d:%d  \t ReadLock \t\t Granted \t\t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
+    fprintf(ZGT_Sh->logfile, "T%d\t   \tReadTx \t\t%d:%d:%d  \t\t ReadLock \t Granted \t  %c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
     fflush(stdout);
     zgt_v(0);
@@ -473,7 +504,7 @@ void zgt_tx::perform_readWrite(long tid,long obno, char lockmode){
     // ZGT_Sh->objarray[obno]->value = x;
      ZGT_Sh->objarray[obno]->value = objvalue+5;
 
-    fprintf(ZGT_Sh->logfile, "T%d\t\t\t   \tWriteTx \t%d:%d:%d \t\t WriteLock \t\t Granted \t\t%c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
+    fprintf(ZGT_Sh->logfile, "T%d\t \tWriteTx \t%d:%d:%d \t\t WriteLock \t Granted \t  %c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
     fflush(stdout);
     zgt_v(0);
