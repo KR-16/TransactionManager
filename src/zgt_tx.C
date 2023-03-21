@@ -489,9 +489,6 @@ void zgt_tx::perform_readWrite(long tid,long obno, char lockmode){
   if (lockmode == 'S')
   {
     ZGT_Sh->objarray[obno]->value = objvalue-3;
-    // s -= 3;
-    // ZGT_Sh->objarray[obno]->value = s;
-
     fprintf(ZGT_Sh->logfile, "T%d\t   \tReadTx \t\t%d:%d:%d  \t\t ReadLock \t Granted \t  %c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
     fflush(stdout);
@@ -499,11 +496,7 @@ void zgt_tx::perform_readWrite(long tid,long obno, char lockmode){
   }
   else if (lockmode == 'X')
   {
-    // x = ZGT_Sh->objarray[obno]->value;
-    // x += 5;
-    // ZGT_Sh->objarray[obno]->value = x;
-     ZGT_Sh->objarray[obno]->value = objvalue+5;
-
+    ZGT_Sh->objarray[obno]->value = objvalue+5;
     fprintf(ZGT_Sh->logfile, "T%d\t \tWriteTx \t%d:%d:%d \t\t WriteLock \t Granted \t  %c\n", tid, obno, ZGT_Sh->objarray[obno]->value, ZGT_Sh->optime[tid], tx->status);
     fflush(ZGT_Sh->logfile);
     fflush(stdout);
