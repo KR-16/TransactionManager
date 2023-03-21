@@ -126,6 +126,7 @@ void *readtx(void *arg)
   pthread_exit(NULL); // thread exit
 }
 
+
 void *writetx(void *arg)
 {                                           // do the operations for writing; similar to readTx
   struct param *node = (struct param *)arg; // struct parameter that contains
